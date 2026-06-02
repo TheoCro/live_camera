@@ -20,33 +20,50 @@
     <h1>Live Camera Capture</h1>
     <video id="video" autoplay playsinline muted></video>
     <div class="controls">
-      <button id="capture">Capture Photo</button>
+      <button id="start">Start Camera</button>
+      <button id="capture" disabled>Capture Photo</button>
       <button id="close" type="button">Close</button>
     </div>
-    <div class="status" id="status">Requesting camera permission...</div>
+    <div class="status" id="status">Click Start Camera to request permission.</div>
   </div>
   <script>
     const params = new URLSearchParams(window.location.search);
     const target = params.get('target') || 'member';
     const status = document.getElementById('status');
     const video = document.getElementById('video');
+    const startButton = document.getElementById('start');
     const captureButton = document.getElementById('capture');
     const closeButton = document.getElementById('close');
+    let mediaStream = null;
 
     function showStatus(message){ status.textContent = message; }
 
-    async function startCamera(){
+    async function requestPermission(){
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        showStatus('Camera API not supported in this browser.');
+        return;
+      }
       try {
+        showStatus('Requesting camera permission...');
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        mediaStream = stream;
         video.srcObject = stream;
+        captureButton.disabled = false;
         showStatus('Camera is ready. Click Capture when you are ready.');
       } catch (error) {
-        showStatus('Camera access failed: ' + (error.message || error));
+        const message = error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError'
+          ? 'Camera access denied. Please allow camera permissions for this site.'
+          : error.message || String(error);
+        showStatus('Camera access failed: ' + message);
       }
     }
 
+    startButton.addEventListener('click', ()=>{
+      requestPermission();
+    });
+
     captureButton.addEventListener('click', ()=>{
-      if(!video.videoWidth || !video.videoHeight){ showStatus('Camera not ready yet.'); return; }
+      if(!mediaStream || !video.videoWidth || !video.videoHeight){ showStatus('Camera not ready yet.'); return; }
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -55,15 +72,14 @@
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
       if(window.opener && !window.opener.closed){
         window.opener.postMessage({ type: 'CAMERA_DATA', target, data: dataUrl }, '*');
-        showStatus('Photo captured and sent back. You can now close this window.');
-        setTimeout(()=>window.close(), 600);
+        showStatus('Photo captured and sent back. This window will close shortly.');
+        setTimeout(()=>window.close(), 800);
       } else {
         showStatus('Unable to return photo. Parent window is not available.');
       }
     });
 
     closeButton.addEventListener('click', ()=>{ window.close(); });
-    startCamera();
   </script>
 </body>
 </html>
