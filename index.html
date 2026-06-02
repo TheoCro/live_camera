@@ -35,8 +35,14 @@
     const captureButton = document.getElementById('capture');
     const closeButton = document.getElementById('close');
     let mediaStream = null;
+    const hasOpener = !!window.opener;
 
     function showStatus(message){ status.textContent = message; }
+
+    function setControls(enabled){
+      startButton.disabled = !enabled;
+      captureButton.disabled = !enabled || !mediaStream;
+    }
 
     async function requestPermission(){
       if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
@@ -70,16 +76,22 @@
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      if(window.opener && !window.opener.closed){
+      if(hasOpener && window.opener && !window.opener.closed){
         window.opener.postMessage({ type: 'CAMERA_DATA', target, data: dataUrl }, '*');
         showStatus('Photo captured and sent back. This window will close shortly.');
         setTimeout(()=>window.close(), 800);
       } else {
-        showStatus('Unable to return photo. Parent window is not available.');
+        showStatus('Unable to return photo. This page must be opened by the portal app with the Launch Camera button.');
+        captureButton.disabled = true;
       }
     });
 
     closeButton.addEventListener('click', ()=>{ window.close(); });
+
+    if(!hasOpener){
+      showStatus('This page must be opened from the portal. Do not navigate here directly.');
+      startButton.disabled = true;
+    }
   </script>
 </body>
 </html>
